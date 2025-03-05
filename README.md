@@ -1,4 +1,16 @@
+## Run program
+
+```
+gcc -lm main.c -o main && ./main
+```
+
+## Using these github repos and resources: 
+1. [PaulStaffrogen/core](https://github.com/PaulStoffregen/cores)
+2. [tsoding/nob.h](https://github.com/tsoding/nob.h)
+3. [arm compiler](https://developer.arm.com/downloads/-/gnu-rm)
+
 ## Goals
+
 - create a standalone sythesizer
 - output to aux
 - simple rules, filters, parameters that yield complex sounds

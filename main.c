@@ -2,8 +2,19 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
 #ifdef EMBEDDED
-#include "embedded_delay.h"
+    #define MA_NO_RUNTIME_LINKING
+    #define MA_NO_THREADING
+    #define MA_NO_DEVICE_IO
+    #ifdef ARDUINO
+        #include <Arduino.h>
+        static inline void embedded_delay_ms(uint32_t ms) { delay(ms); }
+    #else
+        #include <unistd.h>
+        static inline void embedded_delay_ms(uint32_t ms) { usleep(ms * 1000); }
+    #endif
+#include <unistd.h>
 #else
 #include <unistd.h>
 #include <pthread.h>
@@ -16,6 +27,7 @@
 
 #define TABLE_SIZE 256
 #define SAMPLE_RATE 48000.0f
+#define MAX_VOICES 3
 
 // Precompute a sine lookup table for one cycle.
 float SINELUT[TABLE_SIZE];
@@ -82,10 +94,7 @@ int getch(void) {
         return c;
     }
 }
-#endif
 
-#ifndef EMBEDDED
-// Input thread: waits for 'j' or 'k' key to adjust the LFO frequency.
 void* input_thread(void* arg) {
     synth_params* params = (synth_params*)arg;
     set_conio_terminal_mode();
@@ -99,11 +108,11 @@ void* input_thread(void* arg) {
                 params->lfo.frequency -= 0.1f;
                 if (params->lfo.frequency < 0.0f) params->lfo.frequency = 0.0f;
             } else if (ch == 'g') { 
-                params->osc.frequency += 1.0;
+                params->osc.frequency += 10.0;
                 if (params->osc.frequency > 600.0) params->osc.frequency = 600.0f;
             } else if (ch == 'h') {
-                params->osc.frequency -= 1.0;
-                if (params->osc.frequency < 100.0) params->osc.frequency = 100.0f;
+                params->osc.frequency -= 10.0;
+                if (params->osc.frequency < 50.0) params->osc.frequency = 50.0f;
             } else if (ch == 'd') { 
                 params->lfo.depth += 0.1f;
                 if (params->lfo.depth > 2.0f) params->lfo.depth = 2.0f;
@@ -265,7 +274,7 @@ int main() {
     }
     // printf("Playing rich tone. Press 'j' or 'k' to adjust LFO frequency.\n");
     // Run for 30 seconds, for example.
-    sleep(30);
+    sleep(100);
     pthread_cancel(thread);
 #else
     // On embedded, poll physical buttons here instead.
@@ -278,4 +287,3 @@ int main() {
     ma_device_uninit(&device);
     return 0;
 }
-
