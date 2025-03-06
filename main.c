@@ -14,9 +14,7 @@
         #include <unistd.h>
         static inline void embedded_delay_ms(uint32_t ms) { usleep(ms * 1000); }
     #endif
-#include <unistd.h>
 #else
-#include <unistd.h>
 #include <pthread.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -25,9 +23,9 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
-#define TABLE_SIZE 256
+#define TABLE_SIZE 1024
 #define SAMPLE_RATE 48000.0f
-#define MAX_VOICES 3
+#define MAX_VOICES 5
 
 // Precompute a sine lookup table for one cycle.
 float SINELUT[TABLE_SIZE];
@@ -46,19 +44,19 @@ typedef enum {
 
 // Structure to hold oscillator state.
 typedef struct {
-    float frequency;      // Frequency in Hz.
+    float base_freq;
+    float freqs[MAX_VOICES];
     float phase;          // Current phase [0.0, 1.0).
-    float phase_increment; // Not used directly; computed each callback.
+    float phases[MAX_VOICES];
     WaveType wave_type;
+    int num_voices;
 } oscillator;
 
 typedef struct { 
-    float depth;         // Modulation depth (0.0 - 1.0).
-    float frequency;     // LFO frequency in Hz.
-    float phase;         // Current phase of the LFO [0.0, 1.0).
-    float phase_increment; // Not used directly; computed each callback.
-    WaveType wave_type;   // LFO waveform type.
-    float target;        // Parameter being modulated (e.g. base frequency).
+    float depth;        
+    float base_freq;     
+    float phase;         
+    WaveType wave_type;   
 } lfo_filter;
 
 typedef struct { 
@@ -98,21 +96,29 @@ int getch(void) {
 void* input_thread(void* arg) {
     synth_params* params = (synth_params*)arg;
     set_conio_terminal_mode();
-    printf("Press 'j' to increase LFO frequency by 0.1 Hz, 'k' to decrease by 0.1 Hz\n");
+    printf("Press 'j' to increase LFO base_freq by 0.1 Hz, 'k' to decrease by 0.1 Hz\n");
     while (1) {
         if (kbhit()) {
             int ch = getch();
             if (ch == 'j') {
-                params->lfo.frequency += 0.1f;
+                params->lfo.base_freq += 0.1f;
             } else if (ch == 'k') {
-                params->lfo.frequency -= 0.1f;
-                if (params->lfo.frequency < 0.0f) params->lfo.frequency = 0.0f;
+                params->lfo.base_freq -= 0.1f;
+                if (params->lfo.base_freq < 0.0f) params->lfo.base_freq = 0.0f;
             } else if (ch == 'g') { 
-                params->osc.frequency += 10.0;
-                if (params->osc.frequency > 600.0) params->osc.frequency = 600.0f;
+                params->osc.base_freq += 10.0;
+                for (int k = 0; k < MAX_VOICES; k ++) { 
+                    if (params->osc.freqs[k] > 600.0) params->osc.freqs[k] = 600.0f;
+                    params->osc.freqs[k] += 10.0f;
+                }
+                if (params->osc.base_freq > 600.0) params->osc.base_freq = 600.0f;
             } else if (ch == 'h') {
-                params->osc.frequency -= 10.0;
-                if (params->osc.frequency < 50.0) params->osc.frequency = 50.0f;
+                params->osc.base_freq -= 10.0;
+                for (int k = 0; k < MAX_VOICES; k ++) { 
+                    if (params->osc.freqs[k] < 50.0) params->osc.freqs[k] = 50.0f;
+                    params->osc.freqs[k] -= 10.0f;
+                }
+                if (params->osc.base_freq < 50.0) params->osc.base_freq = 50.0f;
             } else if (ch == 'd') { 
                 params->lfo.depth += 0.05f;
                 if (params->lfo.depth > 2.0f) params->lfo.depth = 2.0f;
@@ -123,6 +129,10 @@ void* input_thread(void* arg) {
                 params->osc.wave_type = (params->osc.wave_type + 1) % 3;
             } else if (ch == 'e') { 
                 params->lfo.wave_type = (params->lfo.wave_type + 1) % 3;
+            } else if (ch == 'b') {  
+                if (params->osc.num_voices > 1) params->osc.num_voices -= 1;
+            } else if (ch == 'n') { 
+                if (params->osc.num_voices < MAX_VOICES) params->osc.num_voices += 1;
             }
         }
 
@@ -132,8 +142,8 @@ void* input_thread(void* arg) {
         // Print parameters with controls
         printf("C-EMBEDDED-SYNTH PARAMETERS\n");
         printf("---------------------------\n");
-        printf("Oscillator Frequency: %.2f Hz    (g: increase, h: decrease)\n", params->osc.frequency);
-        printf("LFO Frequency:        %.2f Hz    (j: increase, k: decrease)\n", params->lfo.frequency);
+        printf("Oscillator Frequency: %.2f Hz    (g: increase, h: decrease)\n", params->osc.base_freq);
+        printf("LFO Frequency:        %.2f Hz    (j: increase, k: decrease)\n", params->lfo.base_freq);
         printf("LFO Depth:            %.2f       (d: increase, f: decrease)\n", params->lfo.depth);
         printf("--------------------------------------------------------------------\n");
         printf("Oscillator Waveform:  %s         (w: cycle through waveforms)\n", 
@@ -142,6 +152,7 @@ void* input_thread(void* arg) {
         printf("LFO Waveform:         %s         (e: cycle through waveforms)\n",
                 params->lfo.wave_type == WAVE_SIN ? "Sine" : 
                 params->lfo.wave_type == WAVE_SAW ? "Sawtooth" : "Square");
+        printf("Voices:               %.d       (n: increase, b: decrease)\n", params->osc.num_voices);
 
         usleep(10000); // Sleep 10ms to reduce CPU load.
     }
@@ -180,31 +191,42 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
             }
         }
         
-        // Apply LFO to frequency modulation.
-        // Map lfoValue from [-1,1] to [1-depth, 1+depth].
+        // main
         float frequencyMod = 1.0f + (lfoValue * lfo->depth);
-        // float currentPhaseIncrement = (lfo->target / SAMPLE_RATE) * frequencyMod;
-        float currentPhaseIncrement = (osc->frequency / SAMPLE_RATE) * frequencyMod;
+        // voices
+        float currentVoiceIncrements[MAX_VOICES];
+        for (int k = 0; k < osc->num_voices; k ++) { 
+            currentVoiceIncrements[k] = osc->freqs[k] / SAMPLE_RATE * frequencyMod;
+        }
         
         // Generate oscillator output using the modulated phase increment.
         switch (osc->wave_type) {
             case WAVE_SIN: {
-                int index = (int)(osc->phase * TABLE_SIZE) % TABLE_SIZE;
-                float fundamental = SINELUT[index];
-                float secondHarmonic = SINELUT[(2 * index) % TABLE_SIZE];
-                float thirdHarmonic = SINELUT[(3 * index) % TABLE_SIZE];
-                sample = (fundamental + secondHarmonic + thirdHarmonic) / 3.0f;
+                for (int k = 0; k < osc->num_voices; k ++) { 
+                    int index = (int)(osc->phases[k] * TABLE_SIZE) % TABLE_SIZE;
+                    sample += SINELUT[index];
+                }
+                sample /= (float)osc->num_voices;
                 break;
             }
             case WAVE_SAW:
-                sample = 2.0f * osc->phase - 1.0f;
+                for (int k = 0; k < osc->num_voices; k ++) { 
+                    sample += (2.0f * osc->phases[k] - 1.0f);
+                }
+                sample /= (float)osc->num_voices;
                 break;
             case WAVE_SQU:
-                sample = (osc->phase < 0.5f) ? -1.0f : 1.0f;
+                for (int k = 0; k < osc->num_voices; k ++) { 
+                    sample += (osc->phase < 0.5f) ? -1.0f: 1.0f;
+                }
+                sample /= (float)osc->num_voices;
                 break;
             default: {
-                int index = (int)(osc->phase * TABLE_SIZE) % TABLE_SIZE;
-                sample = SINELUT[index];
+                for (int k = 0; k < osc->num_voices; k ++) { 
+                    int index = (int)(osc->phases[k] * TABLE_SIZE) % TABLE_SIZE;
+                    sample += SINELUT[index];
+                }
+                sample /= (float)osc->num_voices;
                 break;
             }
         }
@@ -212,14 +234,16 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
         // Write stereo sample.
         *out++ = sample;
         *out++ = sample;
-        
-        // Update oscillator phase.
-        osc->phase += currentPhaseIncrement;
-        if (osc->phase >= 1.0f)
-            osc->phase -= 1.0f;
-        
+
+        //voices
+        for (int k = 0; k < osc->num_voices; k ++) { 
+            osc->phases[k] += currentVoiceIncrements[k];
+            if (osc->phases[k] >= 1.0f)
+                osc->phases[k] -= 1.0f;
+        }
+
         // Update LFO phase.
-        lfo->phase += lfo->frequency / SAMPLE_RATE;
+        lfo->phase += lfo->base_freq / SAMPLE_RATE;
         if (lfo->phase >= 1.0f)
             lfo->phase -= 1.0f;
     }
@@ -234,17 +258,19 @@ int main() {
     
     // Initialize synth parameters.
     synth_params params;
-    params.osc.frequency = 240.0f;
+    params.osc.base_freq = 240.0f;
     params.osc.phase = 0.0f;
-    params.osc.phase_increment = params.osc.frequency / SAMPLE_RATE;
     params.osc.wave_type = WAVE_SIN;
+    params.osc.num_voices = 3;
+    for (int k = 0; k < MAX_VOICES; k++) { 
+        params.osc.freqs[k] = params.osc.base_freq * (0.99f + ((float)rand() / RAND_MAX) * 0.01f); // random variation between 90% and 110% of base base_freq
+        params.osc.phases[k] = 0.0f;
+    } 
     
     params.lfo.depth = 0.2f;
-    params.lfo.frequency = 10.0f;
+    params.lfo.base_freq = 10.0f;
     params.lfo.phase = 0.0f;
-    params.lfo.phase_increment = params.lfo.frequency / SAMPLE_RATE;
     params.lfo.wave_type = WAVE_SAW;  // You can change this to WAVE_SIN or WAVE_SQU.
-    params.lfo.target = params.osc.frequency; // defining the target as the oscialltor frequency. that is what we will modify
     
     // Configure miniaudio.
     ma_device device;
@@ -266,21 +292,17 @@ int main() {
     }
     
 #ifndef EMBEDDED
-    // On Linux, start the input thread to adjust LFO frequency.
+    // On Linux, start the input thread to adjust LFO base_freq.
     pthread_t thread;
     if (pthread_create(&thread, NULL, input_thread, &params) != 0) {
         fprintf(stderr, "Error creating input thread.\n");
         return -1;
     }
-    // printf("Playing rich tone. Press 'j' or 'k' to adjust LFO frequency.\n");
-    // Run for 30 seconds, for example.
     sleep(100);
     pthread_cancel(thread);
 #else
-    // On embedded, poll physical buttons here instead.
     while (1) {
         embedded_delay_ms(10);
-        // Update button status and adjust params.lfo.frequency accordingly.
     }
 #endif
     
