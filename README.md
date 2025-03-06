@@ -9,6 +9,29 @@ gcc -lm main.c -o main && ./main
 2. [tsoding/nob.h](https://github.com/tsoding/nob.h)
 3. [arm compiler](https://developer.arm.com/downloads/-/gnu-rm)
 
+## commands
+check memory regions: 
+```
+arm-none-eabi-objdump -h main.elf
+```
+
+check sizes used: 
+```
+arm-none-eabi-size main.elf
+```
+
+dump linker script from newlib: 
+```
+arm-none-eabi-gcc -mcpu=arm7tdmi -mthumb -Wl,-verbose -o main.elf main.c
+```
+
+convert elf to hex: 
+```
+arm-none-eabi-objcopy -O ihex main.elf main.hex
+```
+
+
+
 ## Goals
 
 - create a standalone sythesizer

@@ -114,10 +114,10 @@ void* input_thread(void* arg) {
                 params->osc.frequency -= 10.0;
                 if (params->osc.frequency < 50.0) params->osc.frequency = 50.0f;
             } else if (ch == 'd') { 
-                params->lfo.depth += 0.1f;
+                params->lfo.depth += 0.05f;
                 if (params->lfo.depth > 2.0f) params->lfo.depth = 2.0f;
             } else if (ch == 'f') {
-                params->lfo.depth -= 0.1f;
+                params->lfo.depth -= 0.05f;
                 if (params->lfo.depth < 0.0f) params->lfo.depth = 0.0f;
             } else if (ch == 'w') {  
                 params->osc.wave_type = (params->osc.wave_type + 1) % 3;

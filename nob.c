@@ -18,14 +18,6 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "host") == 0) {
         nob_cmd_append(&cmd, "cc", "-lm", "-o", "main", "main.c");
     }
-    //    else if (strcmp(argv[1], "embedded") == 0) {
-    //        nob_cmd_append(&cmd, "arm-none-eabi-gcc",
-    //            "-mcpu=cortex-m7", "-mthumb", "-O2", 
-    //            "-ffunction-sections", "-fdata-sections",
-    //            "-I./miniaudio.h", "-DTEENSY", "-DEMBEDDED",
-    //            "-Tteensy41.ld", "-Wall", "-Wextra", "-Wno-unused-function",
-    //            "-o", "synth.elf", "main.c");
-    //    }
     else if (strcmp(argv[1], "embedded") == 0) { 
         nob_cmd_append(&cmd, "arm-none-eabi-g++",
                 "-mcpu=cortex-m7", "-mthumb", "-O2", "-std=c++17",
@@ -35,7 +27,14 @@ int main(int argc, char **argv)
                 "-T./teensy41.ld", "-Wall", "-Wextra", "-Wno-unused-function",
                 "-o", "synth.elf", "main2.c" 
                 );  // Adjust path to Teensy core
+    } else if (strcmp(argv[1], "emb2") == 0) { 
+        //nob_cmd_append(&cmd, "arm-none-eabi-gcc", "-mcpu=arm7tdmi", "-mthumb",  "-O2",  "-specs=nosys.specs", "-o", "main.elf", "main3.c");
+        nob_cmd_append(&cmd, "arm-none-eabi-gcc", "-mcpu=cortex-m7", "-mthumb", "-mfpu=fpv5-d16", "-mfloat-abi=hard", "-O2", "-w", "-specs=nosys.specs", "-o", "main.elf", "main3.c");
     } 
+    // working compilation with newlib:
+    // arm-none-eabi-gcc -mcpu=arm7tdmi -mthumb -O2 -specs=nosys.specs -o main.elf main3.c
+    // another compilation effort
+    // arm-none-eabi-gcc -mcpu=arm7tdmi -mthumb -O2 -T teensy41.ld -lgcc -specs=nosys.specs -o main.elf main3.c
     else {
         fprintf(stderr, "Unknown target: %s\n", argv[1]);
         return 1;

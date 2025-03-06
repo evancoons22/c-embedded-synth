@@ -7,7 +7,7 @@ MEMORY
 	ERAM (rwx):  ORIGIN = 0x70000000, LENGTH = 16384K
 }
 
-ENTRY(ImageVectorTable)
+ENTRY(Reset_Handler)
 
 SECTIONS
 {
@@ -64,7 +64,9 @@ SECTIONS
 		*(SORT_BY_ALIGNMENT(SORT_BY_NAME(COMMON)))
 		. = ALIGN(32);
 		. = . + 32; /* MPU to trap stack overflow */
-	} > DTCM
+	/* } > DTCM */ 
+    /* can't fit variables in DTCM here */ 
+    } > ERAM
 
 	.bss.dma (NOLOAD) : {
 		*(.hab_log)

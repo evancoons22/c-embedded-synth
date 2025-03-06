@@ -3,12 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <Arduino.h>  // For Teensy/Arduino functions
+#include "imxrt.h"  // Include Teensy 4.1 hardware definitions
 
 #define TABLE_SIZE 256
 #define SAMPLE_RATE 48000
 #define PWM_PIN 9     // Teensy 4.1 PWM-capable pin (adjust as needed)
 #define PWM_FREQ SAMPLE_RATE
 #define PWM_RESOLUTION 8  // 8-bit resolution (0-255)
+
+void loop() {
+    // Main loop stays free for other tasks
+}
+
 
 // Precompute sine lookup table
 float SINELUT[TABLE_SIZE];
@@ -101,23 +107,26 @@ float generate_sample(synth_params* params) {
 }
 
 // Timer interrupt callback
-IntervalTimer audioTimer;
 volatile float nextSample = 0.0f;
-void audioISR() {
-    analogWrite(PWM_PIN, (int)nextSample);
-}
 
 void setup() {
-    // Initialize PWM
-    analogWriteResolution(PWM_RESOLUTION);
-    analogWriteFrequency(PWM_PIN, PWM_FREQ);
-    pinMode(PWM_PIN, OUTPUT);
+    // Enable clock for the PIT
+    CCM_CCGR1 |= CCM_CCGR1_PIT(CCM_CCGR_ON);
 
-    // Initialize sine lookup table
-    init_sineLUT();
+    // Load value for a 1 ms interval (adjust as needed)
+    PIT_CHANNEL[0].LDVAL = (F_CPU / 1000) - 1;
 
-    // Start timer
-    audioTimer.begin(audioISR, 1000000 / SAMPLE_RATE);  // Microseconds per sample
+    // Enable timer and interrupt
+    PIT_MCR = 0;
+    PIT_TCTRL0 = PIT_TCTRL_TIE | PIT_TCTRL_TEN;
+    NVIC_ENABLE_IRQ(IRQ_PIT);
+}
+
+void pit_isr() {
+    // Clear interrupt flag
+    PIT_TFLG0 = PIT_TFLG_TIF;
+
+    // Your buffer update logic here
 }
 
 void loop() {
@@ -137,6 +146,7 @@ void loop() {
 
 int main() {
     setup();
+    init_sineLUT();
     while (1) {
         loop();
     }
