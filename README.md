@@ -1,7 +1,7 @@
 ## Run program
 
 ```
-cc -o nob nob.c
+cc -o nob nob.c  # only once!!
 ./nob host && ./main
 ```
 
@@ -31,10 +31,10 @@ convert elf to hex for use on teensy4.1:
 arm-none-eabi-objcopy -O ihex main.elf main.hex
 ```
 
-## Goals
-- create a standalone sythesizer
+## Idea
+- create a standalone sythesizer on Teensy4.1
 - output to aux
-- simple rules, filters, parameters that yield complex sounds
+- simple rules, filters, parameters with hardware
 
 ## Hardware
 1. Microcontroller: **Teensy 4.1**
@@ -46,15 +46,3 @@ arm-none-eabi-objcopy -O ihex main.elf main.hex
 4. Power Supply: 
     - **5V USB Supply to Teensy 4.1**
 5. Breadboard: **standard breadboard**  (4PCS Breadboards Kit Include 2PCS 830 Point 2PCS 400 Point Solderless Breadboards for Proto Shield Distribution Connecting Blocks)
-
-## Software
-Miniaudio
-- do I need to use minaudio if configuring the DAC is simple? 
-- use for waveform generation and sending data to DAC. is waveform generation easy? 
-- maybe use some custom DSP code.
-- use efficient algorithms and fixed point math
-- use a circular buffer that is a few milliseconds ahead to prevent underruns
-- WHAT will miniaudio make much easier? 
-
-## Other notes
-- don't max out CPU. Indicate usage with lights.
