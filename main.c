@@ -142,17 +142,18 @@ void* input_thread(void* arg) {
         // Print parameters with controls
         printf("C-EMBEDDED-SYNTH PARAMETERS\n");
         printf("---------------------------\n");
-        printf("Oscillator Frequency: %.2f Hz    (g: increase, h: decrease)\n", params->osc.base_freq);
-        printf("LFO Frequency:        %.2f Hz    (j: increase, k: decrease)\n", params->lfo.base_freq);
-        printf("LFO Depth:            %.2f       (d: increase, f: decrease)\n", params->lfo.depth);
-        printf("--------------------------------------------------------------------\n");
-        printf("Oscillator Waveform:  %s         (w: cycle through waveforms)\n", 
+        printf("Oscillator Waveform:   %-10s     (w: cycle through waveforms)\n", 
                 params->osc.wave_type == WAVE_SIN ? "Sine" : 
                 params->osc.wave_type == WAVE_SAW ? "Sawtooth" : "Square");
-        printf("LFO Waveform:         %s         (e: cycle through waveforms)\n",
+        printf("Oscillator Frequency:  %6.2f Hz      (g: increase, h: decrease)\n", params->osc.base_freq);
+        printf("--------------------------------------------------------------------\n");
+        printf("LFO Waveform:          %-10s     (e: cycle through waveforms)\n",
                 params->lfo.wave_type == WAVE_SIN ? "Sine" : 
                 params->lfo.wave_type == WAVE_SAW ? "Sawtooth" : "Square");
-        printf("Voices:               %.d       (n: increase, b: decrease)\n", params->osc.num_voices);
+        printf("LFO Frequency:        %6.2f Hz       (j: increase, k: decrease)\n", params->lfo.base_freq);
+        printf("LFO Depth:           %6.2f           (d: increase, f: decrease)\n", params->lfo.depth);
+        printf("--------------------------------------------------------------------\n");
+        printf("Voices:           %6d             (n: increase, b: decrease)\n", params->osc.num_voices);
 
         usleep(10000); // Sleep 10ms to reduce CPU load.
     }
