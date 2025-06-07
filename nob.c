@@ -9,7 +9,7 @@ int main(int argc, char **argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s [host|embedded]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [host|embedded|emb2]\n", argv[0]);
         return 1;
     }
 
